@@ -65,8 +65,8 @@ const loadLeads = async () => {
       const response = await getLeads();
       
       // Handle both old format (direct array) and new format (object with leads and deduplication info)
-      if (response.leads) {
-        setData(response.leads);
+      if (response.data) {
+        setData(response.data);
         
         // Show deduplication result if duplicates were removed
         if (response.deduplicationResult) {
