@@ -43,16 +43,19 @@ const getDateRange = (period) => {
   }
 };
 
+// Import leads data
+import leadsData from '@/services/mockData/leads.json';
+
 // Helper function to filter leads by date range and user
 const filterLeads = (period = 'all', userId = 'all') => {
-  let filteredLeads = [...leads];
+  let filteredLeads = [...leadsData];
   
-  // Filter by user
+  // Filter by user (using added_by_c field from database schema)
   if (userId !== 'all') {
     filteredLeads = filteredLeads.filter(lead => lead.addedBy === parseInt(userId));
   }
   
-  // Filter by date range
+  // Filter by date range (using created_at_c field from database schema)
   if (period !== 'all') {
     const { start, end } = getDateRange(period);
     filteredLeads = filteredLeads.filter(lead => {
