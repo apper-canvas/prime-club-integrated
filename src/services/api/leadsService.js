@@ -400,26 +400,6 @@ export const getFreshLeadsOnly = async (leadsArray) => {
     return [];
   }
 };
-const freshLeads = [];
-  
-  for (const lead of leadsArray) {
-    if (!lead.website_url_c || !lead.created_at_c) continue;
-    
-    const normalizedUrl = lead.website_url_c.toLowerCase().replace(/\/$/, '');
-    // Check if this URL was added today and wasn't in the system before today
-    const leadDate = new Date(lead.created_at_c);
-    const today = new Date();
-    
-    // If lead was created today and URL never existed before, it's fresh
-    const isToday = leadDate.toDateString() === today.toDateString();
-    const wasNotPreviouslyAdded = !(await wasUrlPreviouslyAdded(normalizedUrl, leadDate));
-    
-    if (isToday && wasNotPreviouslyAdded) {
-      freshLeads.push(lead);
-    }
-  }
-return leadDate.toDateString() === today.toDateString() && 
-           !(await wasUrlPreviouslyAdded(normalizedUrl, leadDate));
 
 // Helper function to check if URL existed before a given date
 const wasUrlPreviouslyAdded = async (normalizedUrl, currentDate) => {

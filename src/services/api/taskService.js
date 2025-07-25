@@ -8,7 +8,6 @@ const apperClient = new ApperClient({
 });
 
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms))
 
 export const taskService = {
   async getAll() {

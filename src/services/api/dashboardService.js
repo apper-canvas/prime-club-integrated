@@ -2,7 +2,7 @@ import { toast } from "react-toastify";
 import React from "react";
 import { getDailyLeadsChart, getLeadsAnalytics, getUserPerformance } from "@/services/api/analyticsService";
 import { getWebsiteUrlActivity } from "@/services/api/reportService";
-import { getLeads, getPendingFollowUps } from "@/services/api/leadsService";
+import { getLeads } from "@/services/api/leadsService";
 import Error from "@/components/ui/Error";
 
 // Initialize ApperClient
