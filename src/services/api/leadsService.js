@@ -1,6 +1,5 @@
 import { toast } from "react-toastify";
 import React from "react";
-import { getPendingFollowUps } from "@/services/api/dashboardService";
 import Error from "@/components/ui/Error";
 
 // Initialize ApperClient
