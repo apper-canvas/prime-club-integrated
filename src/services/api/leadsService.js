@@ -1,18 +1,27 @@
-import leadsData from "@/services/mockData/leads.json";
-import salesRepData from "@/services/mockData/salesReps.json";
+import { toast } from "react-toastify";
+import React from "react";
+import { getPendingFollowUps } from "@/services/api/dashboardService";
+import Error from "@/components/ui/Error";
 
-let leads = [...leadsData];
-let salesReps = [...salesRepData];
+// Initialize ApperClient
+const { ApperClient } = window.ApperSDK;
+const apperClient = new ApperClient({
+  apperProjectId: import.meta.env.VITE_APPER_PROJECT_ID,
+  apperPublicKey: import.meta.env.VITE_APPER_PUBLIC_KEY
+});
 
 // Track all URLs that have ever been added to the system (for fresh lead detection)
 const leadHistoryTracker = new Map();
 
-// Initialize history tracker with existing leads
-leads.forEach(lead => {
-  const normalizedUrl = lead.websiteUrl.toLowerCase().replace(/\/$/, '');
-  leadHistoryTracker.set(normalizedUrl, true);
-});
-
+// Initialize history tracker - will be populated when leads are fetched
+const initializeLeadHistory = (leadsArray) => {
+  leadsArray.forEach(lead => {
+    if (lead.website_url_c) {
+      const normalizedUrl = lead.website_url_c.toLowerCase().replace(/\/$/, '');
+      leadHistoryTracker.set(normalizedUrl, true);
+    }
+  });
+};
 // Utility function to remove duplicate website URLs, keeping the most recent entry
 const deduplicateLeads = (leadsArray) => {
   const urlMap = new Map();
@@ -21,12 +30,13 @@ const deduplicateLeads = (leadsArray) => {
   // Sort by creation date (most recent first) to keep the latest entry
   const sortedLeads = [...leadsArray].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
   
-  sortedLeads.forEach(lead => {
-    const normalizedUrl = lead.websiteUrl.toLowerCase().replace(/\/$/, ''); // Remove trailing slash and normalize
+sortedLeads.forEach(lead => {
+    const normalizedUrl = lead.website_url_c?.toLowerCase().replace(/\/$/, '') || ''; // Remove trailing slash and normalize
     
     // Update history tracker
-    leadHistoryTracker.set(normalizedUrl, true);
-    
+    if (normalizedUrl) {
+      leadHistoryTracker.set(normalizedUrl, true);
+    }
     if (urlMap.has(normalizedUrl)) {
       duplicates.push(lead);
     } else {
@@ -41,210 +51,394 @@ return {
 };
 
 export const getLeads = async () => {
-  // Simulate API delay
-  await new Promise(resolve => setTimeout(resolve, 400));
-  
-  // Automatically deduplicate leads
-  const deduplicationResult = deduplicateLeads(leads);
-  
-  // Update the leads array if duplicates were found
-  if (deduplicationResult.duplicateCount > 0) {
-    leads = deduplicationResult.uniqueLeads;
-  }
-  
-  // Enhance leads with sales rep names
-  const leadsWithRepNames = leads.map(lead => {
-    const salesRep = salesReps.find(rep => rep.Id === lead.addedBy);
-    return {
-      ...lead,
-      addedByName: salesRep ? salesRep.name : 'Unknown'
+  try {
+    const params = {
+      fields: [
+        { field: { Name: "Name" } },
+        { field: { Name: "website_url_c" } },
+        { field: { Name: "team_size_c" } },
+        { field: { Name: "arr_c" } },
+        { field: { Name: "category_c" } },
+        { field: { Name: "linkedin_url_c" } },
+        { field: { Name: "status_c" } },
+        { field: { Name: "funding_type_c" } },
+        { field: { Name: "edition_c" } },
+        { field: { Name: "follow_up_date_c" } },
+        { field: { Name: "added_by_c" } },
+        { field: { Name: "created_at_c" } }
+      ],
+      orderBy: [{ fieldName: "created_at_c", sorttype: "DESC" }],
+      pagingInfo: { limit: 1000, offset: 0 }
     };
-  });
-  
-  return {
-    leads: leadsWithRepNames,
-    deduplicationResult: deduplicationResult.duplicateCount > 0 ? deduplicationResult : null
-  };
+
+    const response = await apperClient.fetchRecords('lead_c', params);
+    
+    if (!response.success) {
+      console.error(response.message);
+      toast.error(response.message);
+      return { leads: [], deduplicationResult: null };
+}
+
+    const leads = response.data || [];
+    
+    // Initialize lead history tracker with fetched leads
+    initializeLeadHistory(leads);
+    
+    return {
+      leads,
+      deduplicationResult: null
+    };
+  } catch (error) {
+    if (error?.response?.data?.message) {
+      console.error("Error fetching leads:", error?.response?.data?.message);
+    } else {
+      console.error(error.message);
+    }
+    return { leads: [], deduplicationResult: null };
+  }
 };
 
 export const getLeadById = async (id) => {
-  // Simulate API delay
-  await new Promise(resolve => setTimeout(resolve, 200));
-  
-  const lead = leads.find(l => l.Id === id);
-  if (!lead) {
+  try {
+    const params = {
+      fields: [
+        { field: { Name: "Name" } },
+        { field: { Name: "website_url_c" } },
+        { field: { Name: "team_size_c" } },
+        { field: { Name: "arr_c" } },
+        { field: { Name: "category_c" } },
+        { field: { Name: "linkedin_url_c" } },
+        { field: { Name: "status_c" } },
+        { field: { Name: "funding_type_c" } },
+        { field: { Name: "edition_c" } },
+        { field: { Name: "follow_up_date_c" } },
+        { field: { Name: "added_by_c" } },
+        { field: { Name: "created_at_c" } }
+      ]
+    };
+
+    const response = await apperClient.getRecordById('lead_c', parseInt(id), params);
+    
+    if (!response.success) {
+      console.error(response.message);
+      throw new Error("Lead not found");
+    }
+
+    return response.data;
+  } catch (error) {
+    if (error?.response?.data?.message) {
+      console.error("Error fetching lead:", error?.response?.data?.message);
+    } else {
+      console.error(error.message);
+    }
     throw new Error("Lead not found");
   }
-  
-  return { ...lead };
 };
 
 export const createLead = async (leadData) => {
-  // Simulate API delay
-  await new Promise(resolve => setTimeout(resolve, 300));
-  
-  // Validate required fields
-  if (!leadData.websiteUrl || !leadData.websiteUrl.trim()) {
-    throw new Error("Website URL is required");
+  try {
+    // Validate required fields
+    if (!leadData.website_url_c || !leadData.website_url_c.trim()) {
+      throw new Error("Website URL is required");
+    }
+
+    const params = {
+      records: [
+        {
+          Name: leadData.Name || leadData.website_url_c,
+          website_url_c: leadData.website_url_c,
+          team_size_c: leadData.team_size_c || "1-3",
+          arr_c: parseFloat(leadData.arr_c || 0),
+          category_c: leadData.category_c || "Other",
+          linkedin_url_c: leadData.linkedin_url_c || "",
+          status_c: leadData.status_c || "New",
+          funding_type_c: leadData.funding_type_c || "Bootstrapped",
+          edition_c: leadData.edition_c || "Select Edition",
+          follow_up_date_c: leadData.follow_up_date_c || null,
+          added_by_c: parseInt(leadData.added_by_c || 1),
+          created_at_c: new Date().toISOString()
+        }
+      ]
+    };
+
+    const response = await apperClient.createRecord('lead_c', params);
+    
+    if (!response.success) {
+      console.error(response.message);
+      toast.error(response.message);
+      throw new Error(response.message);
+    }
+
+    if (response.results) {
+      const failedRecords = response.results.filter(result => !result.success);
+      
+      if (failedRecords.length > 0) {
+        console.error(`Failed to create lead ${failedRecords.length} records:${JSON.stringify(failedRecords)}`);
+        
+        failedRecords.forEach(record => {
+          record.errors?.forEach(error => {
+            toast.error(`${error.fieldLabel}: ${error.message}`);
+          });
+          if (record.message) toast.error(record.message);
+        });
+        throw new Error("Failed to create lead");
+      }
+      
+      const successfulRecord = response.results.find(result => result.success);
+      if (successfulRecord) {
+        toast.success("Lead created successfully");
+        return successfulRecord.data;
+      }
+    }
+  } catch (error) {
+    if (error?.response?.data?.message) {
+      console.error("Error creating lead:", error?.response?.data?.message);
+    } else {
+      console.error(error.message);
+    }
+    throw error;
   }
-  
-  // Check for duplicate website URL before creating
-  const normalizedUrl = leadData.websiteUrl.toLowerCase().replace(/\/$/, '');
-  const existingLead = leads.find(lead => 
-    lead.websiteUrl.toLowerCase().replace(/\/$/, '') === normalizedUrl
-  );
-  
-  if (existingLead) {
-    throw new Error(`A lead with website URL "${leadData.websiteUrl}" already exists`);
-  }
-// Update history tracker for new lead
-  leadHistoryTracker.set(normalizedUrl, true);
-  const maxId = Math.max(...leads.map(l => l.Id), 0);
-  const newLead = {
-    websiteUrl: leadData.websiteUrl,
-teamSize: leadData.teamSize || "1-3",
-    arr: leadData.arr || 0,
-    category: leadData.category || "Other",
-    linkedinUrl: leadData.linkedinUrl || "",
-    status: leadData.status || "Keep an Eye",
-    fundingType: leadData.fundingType || "Bootstrapped",
-    edition: leadData.edition || "Select Edition",
-    followUpDate: leadData.followUpDate || null,
-    addedBy: leadData.addedBy || 1, // Default to first sales rep for demo
-    Id: maxId + 1,
-    createdAt: new Date().toISOString()
-  };
-  
-  leads.push(newLead);
-  
-  // Return lead with sales rep name
-  const salesRep = salesReps.find(rep => rep.Id === newLead.addedBy);
-  return { 
-    ...newLead,
-    addedByName: salesRep ? salesRep.name : 'Unknown'
-  };
 };
 
 export const updateLead = async (id, updates) => {
-  // Simulate API delay
-  await new Promise(resolve => setTimeout(resolve, 300));
-  
-  const index = leads.findIndex(l => l.Id === id);
-  if (index === -1) {
-    throw new Error("Lead not found");
+  try {
+    const updateData = { ...updates };
+    
+    // Format numeric fields
+    if (updateData.arr_c !== undefined) {
+      updateData.arr_c = parseFloat(updateData.arr_c || 0);
+    }
+    if (updateData.added_by_c !== undefined) {
+      updateData.added_by_c = parseInt(updateData.added_by_c);
+    }
+
+    const params = {
+      records: [
+        {
+          Id: parseInt(id),
+          ...updateData
+        }
+      ]
+    };
+
+    const response = await apperClient.updateRecord('lead_c', params);
+    
+    if (!response.success) {
+      console.error(response.message);
+      toast.error(response.message);
+      throw new Error("Lead not found");
+    }
+
+    if (response.results) {
+      const failedUpdates = response.results.filter(result => !result.success);
+      
+      if (failedUpdates.length > 0) {
+        console.error(`Failed to update lead ${failedUpdates.length} records:${JSON.stringify(failedUpdates)}`);
+        
+        failedUpdates.forEach(record => {
+          record.errors?.forEach(error => {
+            toast.error(`${error.fieldLabel}: ${error.message}`);
+          });
+          if (record.message) toast.error(record.message);
+        });
+        throw new Error("Failed to update lead");
+      }
+      
+      const successfulUpdate = response.results.find(result => result.success);
+      if (successfulUpdate) {
+        toast.success("Lead updated successfully");
+        return successfulUpdate.data;
+      }
+    }
+  } catch (error) {
+    if (error?.response?.data?.message) {
+      console.error("Error updating lead:", error?.response?.data?.message);
+    } else {
+      console.error(error.message);
+    }
+    throw error;
   }
-  
-  leads[index] = { ...leads[index], ...updates };
-  return { ...leads[index] };
 };
 
 export const deleteLead = async (id) => {
-  // Simulate API delay
-  await new Promise(resolve => setTimeout(resolve, 300));
-  
-  const index = leads.findIndex(l => l.Id === id);
-  if (index === -1) {
-    throw new Error("Lead not found");
+  try {
+    const params = {
+      RecordIds: [parseInt(id)]
+    };
+
+    const response = await apperClient.deleteRecord('lead_c', params);
+    
+    if (!response.success) {
+      console.error(response.message);
+      toast.error(response.message);
+      throw new Error("Lead not found");
+    }
+
+    if (response.results) {
+      const failedDeletions = response.results.filter(result => !result.success);
+      
+      if (failedDeletions.length > 0) {
+        console.error(`Failed to delete lead ${failedDeletions.length} records:${JSON.stringify(failedDeletions)}`);
+        
+        failedDeletions.forEach(record => {
+          if (record.message) toast.error(record.message);
+        });
+        throw new Error("Failed to delete lead");
+      }
+      
+      toast.success("Lead deleted successfully");
+      return { success: true };
+    }
+  } catch (error) {
+    if (error?.response?.data?.message) {
+      console.error("Error deleting lead:", error?.response?.data?.message);
+    } else {
+      console.error(error.message);
+    }
+    throw error;
   }
-  
-  leads.splice(index, 1);
-  return { success: true };
 };
 
 export const getDailyLeadsReport = async () => {
-  // Simulate API delay
-  await new Promise(resolve => setTimeout(resolve, 300));
-  
-  // Get today's date in YYYY-MM-DD format
-  const today = new Date().toISOString().split('T')[0];
-  
-  // Filter leads created today
-  const todaysLeads = leads.filter(lead => {
-    const leadDate = lead.createdAt.split('T')[0];
-    return leadDate === today;
-  });
-  
-  // Group by sales rep
-  const reportData = {};
-  
-  // Initialize all sales reps with empty data
-  salesReps.forEach(rep => {
-    reportData[rep.name] = {
-      salesRep: rep.name,
-      salesRepId: rep.Id,
-      leads: [],
-      leadCount: 0,
-      lowPerformance: false
-    };
-  });
-  
-  // Add today's leads to the respective sales reps
-  todaysLeads.forEach(lead => {
-    const salesRep = salesReps.find(rep => rep.Id === lead.addedBy);
-    const repName = salesRep ? salesRep.name : 'Unknown';
+  try {
+    // Get all leads first
+    const { leads } = await getLeads();
     
-    if (reportData[repName]) {
+    // Get today's date in YYYY-MM-DD format
+    const today = new Date().toISOString().split('T')[0];
+    
+    // Filter leads created today
+    const todaysLeads = leads.filter(lead => {
+      if (!lead.created_at_c) return false;
+      const leadDate = lead.created_at_c.split('T')[0];
+      return leadDate === today;
+    });
+    
+    // Group by sales rep
+    const reportData = {};
+    
+    // Add today's leads to the respective sales reps
+    todaysLeads.forEach(lead => {
+      const repId = lead.added_by_c || 'Unknown';
+      const repName = `Sales Rep ${repId}`;
+      
+      if (!reportData[repName]) {
+        reportData[repName] = {
+          salesRep: repName,
+          salesRepId: repId,
+          leads: [],
+          leadCount: 0,
+          lowPerformance: false
+        };
+      }
+      
       reportData[repName].leads.push(lead);
-    }
-  });
-  
-  // Calculate lead counts and identify low performers
-  Object.values(reportData).forEach(repData => {
-    repData.leadCount = repData.leads.length;
-    repData.lowPerformance = repData.leadCount < 5;
-  });
-  
-  // Convert to array and sort by lead count (descending)
-return Object.values(reportData).sort((a, b) => b.leads.length - a.leads.length);
+    });
+    
+    // Calculate lead counts and identify low performers
+    Object.values(reportData).forEach(repData => {
+      repData.leadCount = repData.leads.length;
+      repData.lowPerformance = repData.leadCount < 5;
+    });
+    
+    // Convert to array and sort by lead count (descending)
+    return Object.values(reportData).sort((a, b) => b.leads.length - a.leads.length);
+  } catch (error) {
+    console.error('Error generating daily leads report:', error);
+    return [];
+  }
 };
 
 export const getPendingFollowUps = async () => {
-  // Simulate API delay
-  await new Promise(resolve => setTimeout(resolve, 300));
-  
-  // Get current date and 7 days from now
-  const now = new Date();
-  const sevenDaysFromNow = new Date();
-  sevenDaysFromNow.setDate(now.getDate() + 7);
-  
-  // Filter leads with follow-up dates within the next 7 days
-  const pendingFollowUps = leads.filter(lead => {
-    if (!lead.followUpDate) return false;
+  try {
+    // Get all leads first
+    const { leads } = await getLeads();
     
-    const followUpDate = new Date(lead.followUpDate);
-    return followUpDate >= now && followUpDate <= sevenDaysFromNow;
-  });
-// Sort by follow-up date (earliest first)
-  return pendingFollowUps.sort((a, b) => new Date(a.followUpDate) - new Date(b.followUpDate));
+    // Get current date and 7 days from now
+    const now = new Date();
+    const sevenDaysFromNow = new Date();
+    sevenDaysFromNow.setDate(now.getDate() + 7);
+    
+    // Filter leads with follow-up dates within the next 7 days
+    const pendingFollowUps = leads.filter(lead => {
+      if (!lead.follow_up_date_c) return false;
+      
+      const followUpDate = new Date(lead.follow_up_date_c);
+      return followUpDate >= now && followUpDate <= sevenDaysFromNow;
+    });
+    
+    // Sort by follow-up date (earliest first)
+    return pendingFollowUps.sort((a, b) => new Date(a.follow_up_date_c) - new Date(b.follow_up_date_c));
+  } catch (error) {
+    console.error('Error fetching pending follow-ups:', error);
+    return [];
+  }
 };
-
 // Get only fresh leads that have never existed in the system before
 export const getFreshLeadsOnly = async (leadsArray) => {
-  // Simulate API delay
-  await new Promise(resolve => setTimeout(resolve, 100));
+  try {
+    if (!Array.isArray(leadsArray)) {
+      return [];
+    }
+    
+    const freshLeads = leadsArray.filter(lead => {
+      if (!lead.website_url_c || !lead.created_at_c) return false;
+      
+      const normalizedUrl = lead.website_url_c.toLowerCase().replace(/\/$/, '');
+      // Check if this URL was added today and wasn't in the system before today
+      const leadDate = new Date(lead.created_at_c);
+      const today = new Date();
+      
+      // If lead was created today and URL never existed before, it's fresh
+      return leadDate.toDateString() === today.toDateString() && 
+             !wasUrlPreviouslyAdded(normalizedUrl, leadDate);
+    });
+    
+    return freshLeads;
+  } catch (error) {
+    console.error('Error filtering fresh leads:', error);
+    return [];
+  }
+};
+const freshLeads = [];
   
-  const freshLeads = leadsArray.filter(lead => {
-    const normalizedUrl = lead.websiteUrl.toLowerCase().replace(/\/$/, '');
+  for (const lead of leadsArray) {
+    if (!lead.website_url_c || !lead.created_at_c) continue;
+    
+    const normalizedUrl = lead.website_url_c.toLowerCase().replace(/\/$/, '');
     // Check if this URL was added today and wasn't in the system before today
-    const leadDate = new Date(lead.createdAt);
+    const leadDate = new Date(lead.created_at_c);
     const today = new Date();
     
     // If lead was created today and URL never existed before, it's fresh
-    return leadDate.toDateString() === today.toDateString() && 
-           !wasUrlPreviouslyAdded(normalizedUrl, leadDate);
-  });
-  
-  return freshLeads;
-};
+    const isToday = leadDate.toDateString() === today.toDateString();
+    const wasNotPreviouslyAdded = !(await wasUrlPreviouslyAdded(normalizedUrl, leadDate));
+    
+    if (isToday && wasNotPreviouslyAdded) {
+      freshLeads.push(lead);
+    }
+  }
+return leadDate.toDateString() === today.toDateString() && 
+           !(await wasUrlPreviouslyAdded(normalizedUrl, leadDate));
 
 // Helper function to check if URL existed before a given date
-const wasUrlPreviouslyAdded = (normalizedUrl, currentDate) => {
-  // Check if any existing lead with this URL was created before the current date
-  const existingLeads = leads.filter(lead => {
-    const existingNormalizedUrl = lead.websiteUrl.toLowerCase().replace(/\/$/, '');
-    return existingNormalizedUrl === normalizedUrl && 
-           new Date(lead.createdAt) < currentDate;
-  });
-  
-  return existingLeads.length > 0;
+const wasUrlPreviouslyAdded = async (normalizedUrl, currentDate) => {
+  try {
+    // Get all leads to check against
+    const { leads } = await getLeads();
+    
+    // Check if any existing lead with this URL was created before the current date
+    const existingLeads = leads.filter(lead => {
+      if (!lead.website_url_c || !lead.created_at_c) return false;
+      
+      const existingNormalizedUrl = lead.website_url_c.toLowerCase().replace(/\/$/, '');
+      return existingNormalizedUrl === normalizedUrl && 
+             new Date(lead.created_at_c) < currentDate;
+    });
+    
+    return existingLeads.length > 0;
+  } catch (error) {
+    console.error('Error checking if URL was previously added:', error);
+    return false;
+  }
 };

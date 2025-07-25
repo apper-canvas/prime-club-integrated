@@ -39,11 +39,11 @@ const Contacts = () => {
   }, []);
 
   useEffect(() => {
-    if (searchTerm) {
+if (searchTerm) {
       const filtered = contacts.filter(contact =>
-        contact.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        contact.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        contact.company.toLowerCase().includes(searchTerm.toLowerCase())
+        (contact.Name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (contact.email_c || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (contact.company_c || '').toLowerCase().includes(searchTerm.toLowerCase())
       );
       setFilteredContacts(filtered);
     } else {
@@ -51,11 +51,11 @@ const Contacts = () => {
     }
   }, [searchTerm, contacts]);
 
-  const handleStatusChange = async (contactId, newStatus) => {
+const handleStatusChange = async (contactId, newStatus) => {
     try {
-      await updateContact(contactId, { status: newStatus });
+      await updateContact(contactId, { status_c: newStatus });
       const updatedContacts = contacts.map(contact =>
-        contact.Id === contactId ? { ...contact, status: newStatus } : contact
+        contact.Id === contactId ? { ...contact, status_c: newStatus } : contact
       );
       setContacts(updatedContacts);
       toast.success("Contact status updated successfully");
@@ -127,30 +127,30 @@ const Contacts = () => {
                     transition={{ delay: index * 0.05 }}
                     className="hover:bg-gray-50 transition-colors"
                   >
-                    <td className="py-4 px-6">
-                      <div className="flex items-center">
-                        <Avatar name={contact.name} size="sm" />
-                        <div className="ml-3">
-                          <div className="font-medium text-gray-900">{contact.name}</div>
-                          <div className="text-sm text-gray-500">{contact.email}</div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="py-4 px-6">
-                      <div className="font-medium text-gray-900">{contact.company}</div>
-                    </td>
-                    <td className="py-4 px-6">
-                      <Badge variant={getStatusColor(contact.status)}>
-                        {contact.status}
-                      </Badge>
-                    </td>
-                    <td className="py-4 px-6">
-                      <div className="flex items-center">
-                        <Avatar name={contact.assignedRep} size="sm" />
-                        <span className="ml-2 text-sm text-gray-900">{contact.assignedRep}</span>
-                      </div>
-                    </td>
-                    <td className="py-4 px-6">
+<td className="py-4 px-6">
+                       <div className="flex items-center">
+                         <Avatar name={contact.Name || 'N/A'} size="sm" />
+                         <div className="ml-3">
+                           <div className="font-medium text-gray-900">{contact.Name || 'N/A'}</div>
+                           <div className="text-sm text-gray-500">{contact.email_c || 'N/A'}</div>
+                         </div>
+                       </div>
+                     </td>
+                     <td className="py-4 px-6">
+                       <div className="font-medium text-gray-900">{contact.company_c || 'N/A'}</div>
+                     </td>
+                     <td className="py-4 px-6">
+                       <Badge variant={getStatusColor(contact.status_c)}>
+                         {contact.status_c || 'New'}
+                       </Badge>
+                     </td>
+<td className="py-4 px-6">
+                       <div className="flex items-center">
+                         <Avatar name={contact.assigned_rep_c || 'Unassigned'} size="sm" />
+                         <span className="ml-2 text-sm text-gray-900">{contact.assigned_rep_c || 'Unassigned'}</span>
+                       </div>
+                     </td>
+                     <td className="py-4 px-6">
                       <div className="flex items-center space-x-2">
                         <Button
                           size="sm"
@@ -166,17 +166,17 @@ const Contacts = () => {
                         >
                           <ApperIcon name="Mail" size={14} />
                         </Button>
-                        <select
-                          value={contact.status}
-                          onChange={(e) => handleStatusChange(contact.Id, e.target.value)}
-                          className="text-sm border border-gray-300 rounded-lg px-2 py-1"
-                        >
-                          <option value="New">New</option>
-                          <option value="Contacted">Contacted</option>
-                          <option value="Qualified">Qualified</option>
-                          <option value="Unqualified">Unqualified</option>
-                          <option value="Customer">Customer</option>
-                        </select>
+<select
+                           value={contact.status_c || 'New'}
+                           onChange={(e) => handleStatusChange(contact.Id, e.target.value)}
+                           className="text-sm border border-gray-300 rounded-lg px-2 py-1"
+                         >
+                           <option value="New">New</option>
+                           <option value="Contacted">Contacted</option>
+                           <option value="Qualified">Qualified</option>
+                           <option value="Unqualified">Unqualified</option>
+                           <option value="Customer">Customer</option>
+                         </select>
                       </div>
                     </td>
                   </motion.tr>

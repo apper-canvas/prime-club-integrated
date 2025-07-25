@@ -1,6 +1,16 @@
-// Dashboard Service - Centralized data management for dashboard components
-import salesRepsData from "@/services/mockData/salesReps.json";
-import dashboardData from "@/services/mockData/dashboard.json";
+import { toast } from "react-toastify";
+import React from "react";
+import { getDailyLeadsChart, getLeadsAnalytics, getUserPerformance } from "@/services/api/analyticsService";
+import { getWebsiteUrlActivity } from "@/services/api/reportService";
+import { getLeads, getPendingFollowUps } from "@/services/api/leadsService";
+import Error from "@/components/ui/Error";
+
+// Initialize ApperClient
+const { ApperClient } = window.ApperSDK;
+const apperClient = new ApperClient({
+  apperProjectId: import.meta.env.VITE_APPER_PROJECT_ID,
+  apperPublicKey: import.meta.env.VITE_APPER_PUBLIC_KEY
+});
 
 // Standardized API delay for consistent UX
 const API_DELAY = 300;
@@ -69,21 +79,196 @@ const validateUserId = (userId) => {
   return typeof userId === 'number' ? userId : null;
 };
 
+// Static fallback data definitions
+const dashboardData = {
+  recentActivity: [
+    {
+      id: 1,
+      title: "New lead contacted",
+      type: "contact",
+      time: "2 minutes ago"
+    },
+    {
+      id: 2,
+      title: "Meeting scheduled",
+      type: "meeting",
+      time: "15 minutes ago"
+    },
+    {
+      id: 3,
+      title: "Deal closed",
+      type: "deal",
+      time: "1 hour ago"
+    }
+  ],
+  todaysMeetings: [
+    {
+      id: 1,
+      title: "Sales Call with ABC Corp",
+      time: "10:00 AM",
+      client: "ABC Corp"
+    },
+    {
+      id: 2,
+      title: "Demo with XYZ Inc",
+      time: "2:00 PM",
+      client: "XYZ Inc"
+    }
+  ]
+};
+
+const salesRepsData = [
+  {
+    Id: 1,
+    name: "John Smith"
+  },
+  {
+    Id: 2,
+    name: "Sarah Johnson"
+  },
+  {
+    Id: 3,
+    name: "Mike Wilson"
+  },
+  {
+    Id: 4,
+    name: "Emily Davis"
+  }
+];
+
 // Core dashboard metrics from static data
 export const getDashboardMetrics = async () => {
-  await simulateAPICall();
-  
-  if (!dashboardData?.metrics || !Array.isArray(dashboardData.metrics)) {
-    throw new Error('Invalid dashboard metrics data structure');
+  try {
+    await simulateAPICall();
+    
+    // Get aggregated data from various sources
+    const [leadsResponse, dealsResponse, salesRepsResponse] = await Promise.all([
+      apperClient.fetchRecords('lead_c', {
+        fields: [{ field: { Name: "Id" } }],
+        aggregators: [
+          {
+            id: 'TotalLeads',
+            fields: [{ field: { Name: "Id" }, Function: 'Count' }]
+          }
+        ]
+      }),
+      apperClient.fetchRecords('deal_c', {
+        fields: [{ field: { Name: "Id" } }, { field: { Name: "value_c" } }],
+        aggregators: [
+          {
+            id: 'TotalDeals',
+            fields: [{ field: { Name: "Id" }, Function: 'Count' }]
+          },
+          {
+            id: 'TotalRevenue',
+            fields: [{ field: { Name: "value_c" }, Function: 'Sum' }]
+          }
+        ]
+      }),
+      apperClient.fetchRecords('sales_rep_c', {
+        fields: [{ field: { Name: "meetings_booked_c" } }],
+        aggregators: [
+          {
+            id: 'TotalMeetings',
+            fields: [{ field: { Name: "meetings_booked_c" }, Function: 'Sum' }]
+          }
+        ]
+      })
+    ]);
+
+    const totalLeads = leadsResponse.success ? (leadsResponse.total || 0) : 0;
+    const totalDeals = dealsResponse.success ? (dealsResponse.total || 0) : 0;
+    const totalRevenue = dealsResponse.success && dealsResponse.data ? 
+      dealsResponse.data.reduce((sum, deal) => sum + (deal.value_c || 0), 0) : 0;
+    const totalMeetings = salesRepsResponse.success && salesRepsResponse.data ?
+      salesRepsResponse.data.reduce((sum, rep) => sum + (rep.meetings_booked_c || 0), 0) : 0;
+
+    const conversionRate = totalLeads > 0 ? ((totalDeals / totalLeads) * 100).toFixed(1) : '0.0';
+
+    return [
+      {
+        id: 1,
+        title: "Total Leads Contacted",
+        value: totalLeads.toLocaleString(),
+        icon: "Users",
+        trend: "up",
+        trendValue: "12%",
+        color: "primary"
+      },
+      {
+        id: 2,
+        title: "Meetings Booked",
+        value: totalMeetings.toLocaleString(),
+        icon: "Calendar",
+        trend: "up",
+        trendValue: "8%",
+        color: "success"
+      },
+      {
+        id: 3,
+        title: "Deals Closed",
+        value: totalDeals.toLocaleString(),
+        icon: "TrendingUp",
+        trend: "up",
+        trendValue: "15%",
+        color: "warning"
+      },
+      {
+        id: 4,
+        title: "Conversion Rate",
+        value: `${conversionRate}%`,
+        icon: "Target",
+        trend: "up",
+        trendValue: "2%",
+        color: "info"
+      }
+    ];
+  } catch (error) {
+    if (error?.response?.data?.message) {
+      console.error("Error fetching dashboard metrics:", error?.response?.data?.message);
+    } else {
+      console.error(error.message);
+    }
+    // Return fallback metrics
+    return [
+      {
+        id: 1,
+        title: "Total Leads Contacted",
+        value: "0",
+        icon: "Users",
+        trend: "neutral",
+        trendValue: "0%",
+        color: "primary"
+      },
+      {
+        id: 2,
+        title: "Meetings Booked",
+        value: "0",
+        icon: "Calendar",
+        trend: "neutral",
+        trendValue: "0%",
+        color: "success"
+      },
+      {
+        id: 3,
+        title: "Deals Closed",
+        value: "0",
+        icon: "TrendingUp",
+        trend: "neutral",
+        trendValue: "0%",
+        color: "warning"
+      },
+      {
+        id: 4,
+        title: "Conversion Rate",
+        value: "0.0%",
+        icon: "Target",
+        trend: "neutral",
+        trendValue: "0%",
+        color: "info"
+      }
+    ];
   }
-  
-  return dashboardData.metrics.map(metric => ({
-    ...metric,
-    id: metric.id || Math.random(),
-    value: metric.value || '0',
-    trend: metric.trend || 'neutral',
-    trendValue: metric.trendValue || '0%'
-  }));
 };
 
 // Recent activity from static data
